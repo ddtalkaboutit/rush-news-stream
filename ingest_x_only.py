@@ -326,7 +326,7 @@ def ingest_x_trending_news() -> list[dict]:
     else:
         print("  No X cookie found; results may be limited.")
 
-    # FOR YOU (max 3)
+    # FOR You (max 3)
     driver_for_you = _x_new_driver_with_cookies(cookies)
     driver_for_you.get("https://x.com/explore")
     time.sleep(5)
@@ -573,5 +573,11 @@ def send_trends_to_dashboard(trends: list[dict]) -> None:
         print("Trend sync FAILED:", e)
 
 
+# ADD THE LOOP HERE FOR SCHEDULING
+import time
+
 if __name__ == "__main__":
-    main()
+    while True:
+        main()
+        print("Waiting 15 minutes for next run...")
+        time.sleep(900)  # 15 minutes = 900 seconds
