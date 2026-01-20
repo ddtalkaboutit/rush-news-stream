@@ -9,7 +9,3 @@ beautifulsoup4
 newspaper3k
 selenium
 webdriver-manager
-
-# For headless Chrome on Render
-chromium
-chromium-driver
