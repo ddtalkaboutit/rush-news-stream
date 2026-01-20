@@ -8,8 +8,10 @@ import re
 import string
 from collections import Counter
 
-from .database import SessionLocal, engine, Base
-from . import schemas, models, config
+from database import SessionLocal, engine, Base
+import schemas
+import models
+import config
 
 Base.metadata.create_all(bind=engine)
 
@@ -1058,5 +1060,6 @@ def list_trending_topics(
             "keywords": [],
             "stories": other_clean,
         })
+
 
     return result
