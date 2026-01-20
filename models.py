@@ -12,7 +12,7 @@ from sqlalchemy.dialects.sqlite import JSON
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from .database import Base
+from database import Base
 
 ET_TZ = ZoneInfo("America/New_York")
 
@@ -114,4 +114,5 @@ class Trend(Base):
     trend_age = Column(Integer, default=0)
 
     first_seen_at = Column(DateTime(timezone=True), default=now_et)
+
     updated_at = Column(DateTime(timezone=True), default=now_et)
