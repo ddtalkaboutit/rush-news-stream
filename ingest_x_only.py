@@ -45,24 +45,21 @@ ET_TZ = ZoneInfo("America/New_York")
 # ==============================
 
 def _x_setup_driver():
+    from selenium.webdriver.chrome.service import Service as ChromeService
+    from webdriver_manager.chrome import ChromeDriverManager
+
     options = Options()
     options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")                  # Required on Render/cloud Linux
-    options.add_argument("--disable-dev-shm-usage")       # Prevents shared memory issues
-    options.add_argument("--disable-gpu")                 # Often needed in headless
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--log-level=3")
     options.add_argument("--force-device-scale-factor=1")
     options.add_argument("--disable-blink-features=AutomationControlled")
 
-    # Use the environment variables set in render.yaml / build
-    chrome_bin = os.getenv("CHROME_BIN", "/usr/bin/chromium-browser")
-    chrome_driver = os.getenv("CHROME_DRIVER", "/usr/bin/chromedriver")
-
-    if chrome_bin and os.path.exists(chrome_bin):
-        options.binary_location = chrome_bin
-
-    service = Service(executable_path=chrome_driver)
+    # webdriver-manager auto-downloads the matching ChromeDriver
+    service = ChromeService(ChromeDriverManager().install())
 
     return webdriver.Chrome(service=service, options=options)
 
