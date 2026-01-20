@@ -1,10 +1,9 @@
 """
-X-only ingestion engine for RUSH News Stream
+X-only ingestion engine for RUSH News Stream (includes Sports tab)
 
-- Fetches X News trending headlines + AI summaries + top posts:
-    - From For You, News, Entertainment tabs on https://x.com/explore
-    - Extracts AI summary and top 10 post URLs for each trend
-- Merges, dedupes, trims to 12 per category
+- Fetches X trending headlines + AI summaries + top posts from:
+  - For You, News, Entertainment, Sports tabs on https://x.com/explore
+- Merges, dedupes, trims to 12 per category (except For You: 3)
 - Purges old X trends and syncs new ones to backend via /sync_trends
 """
 
@@ -42,7 +41,7 @@ X_COOKIE_JSON = os.getenv("X_COOKIE_JSON", "[]")
 ET_TZ = ZoneInfo("America/New_York")
 
 # ==============================
-# X SETUP HELPERS
+# X SETUP HELPERS (unchanged)
 # ==============================
 
 def _x_setup_driver():
@@ -226,7 +225,7 @@ def build_trend_object(keyword: str, trend_type: str, score: int, category: str)
     return {
         "id": str(uuid.uuid4()),
         "keyword": keyword,
-        "category": category,          # "For You" | "News" | "Entertainment"
+        "category": category,          # "For You" | "News" | "Entertainment" | "Sports"
         "trend_type": trend_type,      # "x_news"
         "score": score,
         "region": "global",
@@ -303,10 +302,10 @@ def fetch_x_ai_summary(topic_url: str, cookies: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------
-# MAIN X INGESTION FUNCTION (For You + News + Entertainment, with per-cluster 12-cap)
+# MAIN X INGESTION FUNCTION (For You + News + Entertainment + Sports)
 # ---------------------------------------------------------
 def ingest_x_trending_news() -> list[dict]:
-    print("=== X News + Entertainment ingestion ===")
+    print("=== X News + Entertainment + Sports ingestion ===")
     new_trends: list[dict] = []
 
     cookies = _x_load_cookie_json()
@@ -335,6 +334,13 @@ def ingest_x_trending_news() -> list[dict]:
     time.sleep(5)
     ent_items = _x_extract_headlines(driver_ent, max_items=5)
     driver_ent.quit()
+
+    # SPORTS (max 5) - NEW
+    driver_sports = _x_new_driver_with_cookies(cookies)
+    driver_sports.get("https://x.com/explore/tabs/sports")
+    time.sleep(5)
+    sports_items = _x_extract_headlines(driver_sports, max_items=5)
+    driver_sports.quit()
 
     # BUILD TRENDS FOR EACH CATEGORY
     # For You
@@ -397,10 +403,30 @@ def ingest_x_trending_news() -> list[dict]:
 
         new_trends.append(trend)
 
+    # Sports - NEW
+    for idx, item in enumerate(sports_items, start=1):
+        if "url" not in item or not item["url"]:
+            print(f"  [Sports] Skipping item with no URL: {item['headline']}")
+            continue
+
+        trend = build_trend_object(
+            keyword=item["headline"],
+            trend_type="x_news",
+            score=idx,
+            category="Sports",
+        )
+
+        summary_block = fetch_x_ai_summary(item["url"], cookies)
+        trend["summary"] = summary_block["summary"]
+        trend["post_urls"] = summary_block["post_urls"]
+        trend["url"] = item["url"]
+
+        new_trends.append(trend)
+
     print(f"New X trends collected this run: {len(new_trends)}")
 
     # -----------------------------------------------------
-    # MERGE WITH EXISTING X TRENDS, DEDUPE, ENFORCE 12 PER CATEGORY
+    # MERGE WITH EXISTING X TRENDS, DEDUPE, ENFORCE 12 PER CATEGORY (Sports also capped at 12)
     # -----------------------------------------------------
     existing_trends: list[dict] = []
     try:
@@ -413,16 +439,12 @@ def ingest_x_trending_news() -> list[dict]:
     except Exception as e:
         print("Fetch existing X trends failed:", e)
 
-    # Normalize + merge
     combined = []
-
-    # Keep existing first, then new (new will overwrite duplicates)
     for t in existing_trends:
         combined.append(t)
     for t in new_trends:
         combined.append(t)
 
-    # Deduplicate by (normalized keyword, category) — newest wins
     deduped_by_key: dict[tuple[str, str], dict] = {}
 
     def norm_headline(h: str) -> str:
@@ -430,7 +452,6 @@ def ingest_x_trending_news() -> list[dict]:
 
     for t in combined:
         key = (norm_headline(t.get("keyword")), t.get("category") or "")
-        # Prefer the one with the latest first_seen_at / updated_at if present
         if key in deduped_by_key:
             existing = deduped_by_key[key]
             existing_ts = existing.get("first_seen_at") or existing.get("updated_at") or ""
@@ -440,11 +461,11 @@ def ingest_x_trending_news() -> list[dict]:
         else:
             deduped_by_key[key] = t
 
-    # Group by category and enforce max 12 per category
     per_category: dict[str, list[dict]] = {
         "For You": [],
         "News": [],
         "Entertainment": [],
+        "Sports": [],  # NEW
     }
 
     for t in deduped_by_key.values():
@@ -452,7 +473,6 @@ def ingest_x_trending_news() -> list[dict]:
         if cat in per_category:
             per_category[cat].append(t)
 
-    # Sort each category by first_seen_at desc (fallback to updated_at)
     def sort_key(t: dict):
         return t.get("first_seen_at") or t.get("updated_at") or ""
 
@@ -460,14 +480,17 @@ def ingest_x_trending_news() -> list[dict]:
 
     for cat, items in per_category.items():
         items_sorted = sorted(items, key=sort_key, reverse=True)
-        trimmed = items_sorted[:12]
+        # For You keeps max 3, others 12
+        max_cap = 3 if cat == "For You" else 12
+        trimmed = items_sorted[:max_cap]
         final_trends.extend(trimmed)
 
     print(
         f"Final X trends after merge/dedupe/trim: "
         f"For You={len(per_category['For You'])}, "
         f"News={len(per_category['News'])}, "
-        f"Entertainment={len(per_category['Entertainment'])}"
+        f"Entertainment={len(per_category['Entertainment'])}, "
+        f"Sports={len(per_category['Sports'])}"
     )
 
     # -----------------------------------------------------
@@ -507,16 +530,35 @@ def ingest_x_trending_news() -> list[dict]:
 
 def main():
     start = time.time()
-    print("=== X-only ingestion run ===")
+    print("=== X-only ingestion run (with Sports) ===")
     print(f"Start time (UTC): {datetime.utcnow().isoformat()}")
 
-    # X News trending + AI summaries
     x_trends = ingest_x_trending_news()
     if x_trends:
         send_trends_to_dashboard(x_trends)
 
     elapsed = time.time() - start
     print(f"Ingestion run complete in {elapsed:.1f} seconds.")
+
+
+def send_trends_to_dashboard(trends: list[dict]) -> None:
+    if not trends:
+        print("No trends to sync this run.")
+        return
+
+    payload = {
+        "api_key": API_KEY,
+        "trends": trends,
+    }
+
+    try:
+        print("Payload preview:", json.dumps(payload, indent=2))
+        print(f"Syncing {len(trends)} trends...")
+        r = requests.post(API_TRENDS_URL, json=payload, timeout=15)
+        r.raise_for_status()
+        print("Trend sync OK:", r.json())
+    except Exception as e:
+        print("Trend sync FAILED:", e)
 
 
 if __name__ == "__main__":
