@@ -51,17 +51,20 @@ def _x_setup_driver():
 
     options = Options()
     options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")  # Required on Render
-    options.add_argument("--disable-dev-shm-usage")  # Prevents memory crash
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--log-level=3")
     options.add_argument("--force-device-scale-factor=1")
     options.add_argument("--disable-blink-features=AutomationControlled")
 
-    # webdriver-manager auto-downloads and returns the path
+    # webdriver-manager downloads ChromeDriver
     driver_path = ChromeDriverManager().install()
     service = ChromeService(executable_path=driver_path)
+
+    # If driver_path fails, log it
+    print(f"Using ChromeDriver at: {driver_path}")
 
     return webdriver.Chrome(service=service, options=options)
 
