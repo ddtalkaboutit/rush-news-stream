@@ -25,6 +25,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 import os
 from dotenv import load_dotenv
 
+print("Script started - imports successful")
+print("X_COOKIE_JSON length:", len(X_COOKIE_JSON))
+print("API_TRENDS_URL:", API_TRENDS_URL)
+
 load_dotenv()
 
 # ==============================
@@ -542,6 +546,7 @@ def ingest_x_trending_news() -> list[dict]:
 
 def main():
     start = time.time()
+    print("Starting ingestion...")
     print("=== X-only ingestion run (with Sports) ===")
     print(f"Start time (UTC): {datetime.utcnow().isoformat()}")
 
