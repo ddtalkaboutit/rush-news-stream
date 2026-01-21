@@ -25,10 +25,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 import os
 from dotenv import load_dotenv
 
-print("Script started - imports successful")
-print("X_COOKIE_JSON length:", len(X_COOKIE_JSON))
-print("API_TRENDS_URL:", API_TRENDS_URL)
-
 load_dotenv()
 
 # ==============================
@@ -37,12 +33,15 @@ load_dotenv()
 
 API_TRENDS_URL = os.getenv("API_TRENDS_URL", "https://rush-news-stream.onrender.com/sync_trends")
 API_KEY = os.getenv("SYNC_API_KEY", "TAi-newsroom")
-
-# Cookies as env var JSON string (paste from x_cookie.json content)
-X_COOKIE_JSON = os.getenv("X_COOKIE_JSON", "[]")
+X_COOKIE_JSON = os.getenv("X_COOKIE_JSON", "[]")  # Moved up here
 
 # Eastern Time zone object
 ET_TZ = ZoneInfo("America/New_York")
+
+# Debug prints (now safe to use X_COOKIE_JSON)
+print("Script started - imports successful")
+print("X_COOKIE_JSON length:", len(X_COOKIE_JSON))
+print("API_TRENDS_URL:", API_TRENDS_URL)
 
 # ==============================
 # X SETUP HELPERS (unchanged)
